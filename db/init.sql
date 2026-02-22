@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS user_teams (
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    team_id TEXT REFERENCES teams(id) ON DELETE CASCADE,
+    team_role TEXT NOT NULL DEFAULT 'employee',
+    PRIMARY KEY (user_id, team_id)
+);
+
 -- Add foreign keys to teams after users table exists
 ALTER TABLE teams ADD CONSTRAINT fk_teams_manager FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE teams ADD CONSTRAINT fk_teams_lead FOREIGN KEY (lead_id) REFERENCES users(id) ON DELETE SET NULL;
@@ -33,8 +40,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     section VARCHAR(20) NOT NULL CHECK (section IN ('today', 'tomorrow', 'future')),
     text TEXT NOT NULL,
     client_id VARCHAR(64) REFERENCES clients(id) ON DELETE SET NULL,
-    expected_time INTEGER DEFAULT 0,       -- minutes
-    actual_time INTEGER,                    -- minutes, NULL if not logged
+    expected_time INTEGER DEFAULT 0,
+    actual_time INTEGER,
+    task_date DATE,
+    completed_date DATE,
+    url TEXT,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()

@@ -130,7 +130,7 @@ function Login({ onLogin }) {
     <div style={{ minHeight:'100vh',background:'linear-gradient(135deg,#0f172a,#1e293b,#0f172a)',display:'flex',alignItems:'center',justifyContent:'center' }}>
       <div style={{ background:'rgba(30,41,59,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(148,163,184,0.1)',borderRadius:20,padding:'48px 40px',width:380,boxShadow:'0 25px 60px rgba(0,0,0,0.4)' }}>
         <div style={{ textAlign:'center',marginBottom:36 }}><div style={{ fontSize:40,marginBottom:8 }}>📊</div><h1 style={{ color:'#f1f5f9',fontSize:24,fontWeight:700,margin:0 }}>StandUp</h1><p style={{ color:'#94a3b8',fontSize:14,marginTop:6 }}>Daily Task Dashboard</p></div>
-        <div style={{ marginBottom:20 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>User ID</label><input value={uid} onChange={e=>{setUid(e.target.value);setErr('');}} placeholder="e.g. ioannis.batsios" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
+        <div style={{ marginBottom:20 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>User ID</label><input value={uid} onChange={e=>{setUid(e.target.value);setErr('');}} placeholder="e.g. firstname.lastname" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
         <div style={{ marginBottom:28 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>Password</label><input type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="Enter password" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
         {err && <p style={{ color:'#f87171',fontSize:13,margin:'-12px 0 16px',textAlign:'center' }}>{err}</p>}
         <button onClick={go} disabled={loading} style={{ width:'100%',padding:'13px 0',borderRadius:10,border:'none',background:'linear-gradient(135deg,#3b82f6,#6366f1)',color:'#fff',fontSize:15,fontWeight:600,cursor:'pointer',opacity:loading?0.7:1 }}>{loading?'Signing in…':'Sign In'}</button>
@@ -611,8 +611,8 @@ export default function App() {
       const visible = getVisibleUsers(curUser.id, u, t);
       const counts = {};
       await Promise.all(visible.map(async vu => {
-        try { const vt = await api.getTasks(vu.id); counts[vu.id] = { today:vt.today?.length||0, tomorrow:vt.tomorrow?.length||0, future:vt.future?.length||0 }; }
-        catch { counts[vu.id] = { today:0, tomorrow:0, future:0 }; }
+        try { const vt = await api.getTasks(vu.id); const td = vt.today||[]; const wk = td.filter(t => !t.actual_time || t.actual_time===0).length; const cp = td.filter(t => t.actual_time > 0).length; counts[vu.id] = { working:wk, today:cp, tomorrow:vt.tomorrow?.length||0, future:vt.future?.length||0 }; }
+        catch { counts[vu.id] = { working:0, today:0, tomorrow:0, future:0 }; }
       }));
       setTaskCounts(counts);
     } catch (err) { console.error('Load error:', err); }

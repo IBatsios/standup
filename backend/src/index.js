@@ -230,6 +230,10 @@ app.delete('/api/clients/:id', authMiddleware, async (req, res) => {
 // ─── Migration ────────────────────────────────────────────────────────────────
 (async () => {
   try {
+    await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_date DATE`);
+    // Backfill completed_date for already-completed tasks
+    await db.query(`UPDATE tasks SET completed_date = task_date WHERE actual_time > 0 AND completed_date IS NULL`);
+
     await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_date DATE`);
     await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS url TEXT`);
     const today = new Date().toISOString().slice(0, 10);
@@ -290,16 +294,32 @@ app.get('/api/tasks/:userId', authMiddleware, async (req, res) => {
     const tomorrow = toDateStr(new Date(new Date(today + 'T00:00:00').getTime() + 86400000));
 
     if (!req.query.date) {
-      await db.query(`UPDATE tasks SET task_date = $1 WHERE user_id = $2 AND task_date < $1`, [today, req.params.userId]);
+      // Only auto-promote tasks that are overdue by at most 1 day (yesterday's working/tomorrow tasks)
+      // Do NOT promote future tasks (task_date > tomorrow) — those stay put until manually moved
+      await db.query(
+        `UPDATE tasks SET task_date = $1 WHERE user_id = $2 AND task_date < $1 AND task_date >= ($1::date - interval '1 day')`,
+        [today, req.params.userId]
+      );
     }
 
     const result = await db.query('SELECT * FROM tasks WHERE user_id = $1 ORDER BY task_date, sort_order, id', [req.params.userId]);
     const grouped = { today: [], tomorrow: [], future: [] };
     for (const row of result.rows) {
       const d = row.task_date ? toDateStr(new Date(row.task_date)) : today;
-      if (d <= today) grouped.today.push({ ...row, section: 'today' });
-      else if (d === tomorrow) grouped.tomorrow.push({ ...row, section: 'tomorrow' });
-      else grouped.future.push({ ...row, section: 'future' });
+      const completedD = row.completed_date ? toDateStr(new Date(row.completed_date)) : null;
+      const isCompleted = row.actual_time > 0;
+
+      if (isCompleted) {
+        // Only show completed tasks on the day they were completed
+        if (completedD === today) grouped.today.push({ ...row, section: 'today' });
+        // else: archived, don't show
+      } else if (d <= today) {
+        grouped.today.push({ ...row, section: 'today' });
+      } else if (d === tomorrow) {
+        grouped.tomorrow.push({ ...row, section: 'tomorrow' });
+      } else {
+        grouped.future.push({ ...row, section: 'future' });
+      }
     }
     res.json(grouped);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
@@ -346,13 +366,25 @@ app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
     if (section && section !== taskRes.rows[0].section) {
       const today = toDateStr(new Date());
       const tomorrow = toDateStr(new Date(Date.now() + 86400000));
-      task_date = section === 'today' ? today : section === 'tomorrow' ? tomorrow : null;
+      const farFuture = toDateStr(new Date(Date.now() + 86400000 * 365));
+      task_date = section === 'today' ? today : section === 'tomorrow' ? tomorrow : farFuture;
     }
+
+    // Track when a task gets completed (actual_time set) or un-completed (actual_time cleared)
+    let completed_date = taskRes.rows[0].completed_date;
+    if (actual_time !== undefined) {
+      if (actual_time > 0 && !taskRes.rows[0].completed_date) {
+        completed_date = toDateStr(new Date()); // stamp today when first completed
+      } else if (!actual_time || actual_time === 0) {
+        completed_date = null; // clear when undone
+      }
+    }
+
     const result = await db.query(
       `UPDATE tasks SET text = COALESCE($1, text), client_id = $2, expected_time = COALESCE($3, expected_time),
-       actual_time = $4, section = COALESCE($5, section), task_date = $6, url = $7, updated_at = NOW()
-       WHERE id = $8 RETURNING *`,
-      [text, client_id, expected_time, actual_time, section, task_date, url !== undefined ? url : taskRes.rows[0].url, req.params.id]
+       actual_time = $4, section = COALESCE($5, section), task_date = $6, url = $7, completed_date = $8, updated_at = NOW()
+       WHERE id = $9 RETURNING *`,
+      [text, client_id, expected_time, actual_time, section, task_date, url !== undefined ? url : taskRes.rows[0].url, completed_date, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
