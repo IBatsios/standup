@@ -611,8 +611,8 @@ export default function App() {
       const visible = getVisibleUsers(curUser.id, u, t);
       const counts = {};
       await Promise.all(visible.map(async vu => {
-        try { const vt = await api.getTasks(vu.id); const td = vt.today||[]; const wk = td.filter(t => !t.actual_time || t.actual_time===0).length; const cp = td.filter(t => t.actual_time > 0).length; counts[vu.id] = { working:wk, today:cp, tomorrow:vt.tomorrow?.length||0, future:vt.future?.length||0 }; }
-        catch { counts[vu.id] = { working:0, today:0, tomorrow:0, future:0 }; }
+        try { const vt = await api.getTasks(vu.id); counts[vu.id] = { today:vt.today?.length||0, tomorrow:vt.tomorrow?.length||0, future:vt.future?.length||0 }; }
+        catch { counts[vu.id] = { today:0, tomorrow:0, future:0 }; }
       }));
       setTaskCounts(counts);
     } catch (err) { console.error('Load error:', err); }
@@ -634,7 +634,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    api.logout(); setCurUser(null); setViewUser(null);
+    api.logout(); setCurUser(null); setViewUser(null); setShowAdmin(false);
     setUsers([]); setTeams([]); setClients([]); setSelectedDate(todayStr());
   };
 
