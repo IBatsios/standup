@@ -1,3 +1,6 @@
 node_modules/
 frontend/dist/
 .env
+localhost.env
+keycloak/standup-realm.json
+proxy/nginx.conf

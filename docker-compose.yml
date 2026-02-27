@@ -19,14 +19,41 @@ services:
       timeout: 3s
       retries: 5
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: standup-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_PORT: 8080
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ./keycloak/standup-realm.json:/opt/keycloak/data/import/standup-realm.json:ro
+    ports:
+      - "8180:8080"
+    profiles:
+      - sso
+
   backend:
     build: ./backend
     container_name: standup-api
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://standup:${DB_PASSWORD:-changeme_db_password}@db:5432/standup
-      JWT_SECRET: ${JWT_SECRET:-changeme_jwt_secret_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       PORT: 3000
+      SAML_ENTRYPOINT: ${SAML_ENTRYPOINT:-}
+      SAML_ISSUER: ${SAML_ISSUER:-}
+      SAML_CALLBACK_URL: ${SAML_CALLBACK_URL:-}
+      SAML_CERT: ${SAML_CERT:-}
+      SAML_DEFAULT_ROLE: ${SAML_DEFAULT_ROLE:-employee}
+      AUTH_LOCAL_DISABLED: ${AUTH_LOCAL_DISABLED:-false}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8880}
+      FRONTEND_URL: ${FRONTEND_URL:-/}
     ports:
       - "3000:3000"
     depends_on:
@@ -41,6 +68,17 @@ services:
       - "8880:80"
     depends_on:
       - backend
+      
+  proxy:
+    image: nginx:alpine
+    container_name: standup-proxy
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
 
 volumes:
   pgdata:

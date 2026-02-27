@@ -46,3 +46,32 @@ export const handoffTask = (id, data) => request(`/tasks/${id}/handoff`, { metho
 export const getTaskHistory = (id) => request(`/tasks/${id}/history`);
 
 export const healthCheck = () => request('/health');
+
+// ─── SSO / Auth Providers ────────────────────────────────────────────────────
+export async function getAuthProviders() {
+  try {
+    const res = await fetch(`${BASE}/auth/providers`);
+    if (!res.ok) return { providers: ['local'] };
+    return await res.json();
+  } catch { return { providers: ['local'] }; }
+}
+
+export function startSamlLogin() {
+  window.location.href = `${BASE}/auth/saml/login`;
+}
+
+export function consumeTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const t = params.get('token');
+  const error = params.get('error');
+  if (t) {
+    setToken(t);
+    window.history.replaceState({}, '', window.location.pathname);
+    return { token: t };
+  }
+  if (error) {
+    window.history.replaceState({}, '', window.location.pathname);
+    return { error };
+  }
+  return null;
+}

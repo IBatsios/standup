@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'manager', 'team_lead', 'employee')),
     team_id VARCHAR(64) REFERENCES teams(id) ON DELETE SET NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
