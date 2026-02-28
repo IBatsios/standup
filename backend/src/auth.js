@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
-const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required. Set it in your .env file.');
+  process.exit(1);
+}
+const SECRET = process.env.JWT_SECRET;
 
 function generateToken(user) {
   return jwt.sign(

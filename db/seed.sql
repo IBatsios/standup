@@ -1,8 +1,6 @@
 -- Seed data for StandUp Dashboard
 -- Sci-Fi Universe Edition: Star Trek | Star Wars | Battlestar Galactica
--- Password hashes (bcrypt, 10 rounds):
---   "admin"    = $2b$10$24belUZ8U/.4N6VG6X05l.Zt5oyr1tLd1/zaYf0WtLUjEFp7HqMAG
---   "password" = $2b$10$Tajzhj9y1U2yB1xs5Q/MReO/ZIDknvT8AHv.1HgpKa/vslG4usOtO
+-- Password hashes (bcrypt, 10 rounds) — change these before deploying to production
 
 -- ============================================================
 -- CLIENTS
@@ -27,8 +25,7 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 -- USERS
 -- ============================================================
--- "admin" hash: $2b$10$24belUZ8U/.4N6VG6X05l.Zt5oyr1tLd1/zaYf0WtLUjEFp7HqMAG
--- "password" hash: $2b$10$Tajzhj9y1U2yB1xs5Q/MReO/ZIDknvT8AHv.1HgpKa/vslG4usOtO
+-- Seed passwords are for demo/development only — change before deploying to production
 
 INSERT INTO users (id, name, role, team_id, password_hash) VALUES
     -- Owners (the creators)

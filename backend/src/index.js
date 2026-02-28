@@ -1,27 +1,56 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const db = require('./db');
-const { generateToken, authMiddleware } = require('./auth');
+const { authMiddleware } = require('./auth');
 const { canEdit, getVisibleUserIds } = require('./permissions');
+const authProviders = require('./auth-providers');
 
 const app = express();
-app.use(cors());
+
+// ─── Security ────────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:8880'];
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", ...ALLOWED_ORIGINS],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+}));
+
+// Rate limit login attempts: 10 per minute per IP
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { id, password } = req.body;
-    if (!id || !password) return res.status(400).json({ error: 'Missing credentials' });
-    const result = await db.query('SELECT * FROM users WHERE id = $1', [id]);
-    const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = generateToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, role: user.role, team_id: user.team_id } });
-  } catch (err) { console.error('Login error:', err); res.status(500).json({ error: 'Server error' }); }
+app.use('/api/auth/login', loginLimiter);
+authProviders.mountAll(app);
+
+app.get('/api/auth/providers', (req, res) => {
+  res.json({ providers: authProviders.getProviderNames() });
 });
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
@@ -93,8 +122,8 @@ app.post('/api/users', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'owner' && req.user.role !== 'manager') return res.status(403).json({ error: 'Insufficient permissions' });
     const { id, name, role, team_memberships, password } = req.body;
-    if (!id || !name || !role || !password) return res.status(400).json({ error: 'Missing required fields' });
-    const hash = await bcrypt.hash(password, 10);
+    if (!id || !name || !role) return res.status(400).json({ error: 'Missing required fields' });
+    const hash = password ? await bcrypt.hash(password, 10) : null;
     const memberships = team_memberships || [];
     const primaryTeam = memberships.length > 0 ? memberships[0].team_id : null;
     await db.query('INSERT INTO users (id, name, role, team_id, password_hash) VALUES ($1, $2, $3, $4, $5)', [id, name, role, primaryTeam, hash]);
@@ -269,6 +298,9 @@ app.delete('/api/clients/:id', authMiddleware, async (req, res) => {
       )
     `);
 
+    // Allow SSO-only users (no password)
+    await db.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`);
+
     console.log('Migrations complete');
   } catch (err) { console.error('Migration error:', err); }
 })();
@@ -297,7 +329,7 @@ app.get('/api/tasks/:userId', authMiddleware, async (req, res) => {
       // Only auto-promote tasks that are overdue by at most 1 day (yesterday's working/tomorrow tasks)
       // Do NOT promote future tasks (task_date > tomorrow) — those stay put until manually moved
       await db.query(
-        `UPDATE tasks SET task_date = $1 WHERE user_id = $2 AND task_date < $1 AND task_date >= ($1::date - interval '1 day')`,
+        `UPDATE tasks SET task_date = $1, section = 'today' WHERE user_id = $2 AND task_date < $1 AND task_date >= ($1::date - interval '1 day')`,
         [today, req.params.userId]
       );
     }
@@ -328,7 +360,7 @@ app.get('/api/tasks/:userId', authMiddleware, async (req, res) => {
 app.post('/api/tasks', authMiddleware, async (req, res) => {
   try {
     const { user_id, section, text, client_id, expected_time, actual_time, url } = req.body;
-    if (!user_id || !section || !text) return res.status(400).json({ error: 'Missing required fields' });
+    if (!user_id || !section || !text || !client_id) return res.status(400).json({ error: 'Missing required fields' });
 
     // canEdit handles own tasks (always true) and subordinate tasks
     const allowed = await canEdit(req.user.id, user_id);
@@ -363,7 +395,7 @@ app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
 
     const { text, client_id, expected_time, actual_time, section, url } = req.body;
     let task_date = taskRes.rows[0].task_date;
-    if (section && section !== taskRes.rows[0].section) {
+    if (section) {
       const today = toDateStr(new Date());
       const tomorrow = toDateStr(new Date(Date.now() + 86400000));
       const farFuture = toDateStr(new Date(Date.now() + 86400000 * 365));
@@ -384,7 +416,7 @@ app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
       `UPDATE tasks SET text = COALESCE($1, text), client_id = $2, expected_time = COALESCE($3, expected_time),
        actual_time = $4, section = COALESCE($5, section), task_date = $6, url = $7, completed_date = $8, updated_at = NOW()
        WHERE id = $9 RETURNING *`,
-      [text, client_id, expected_time, actual_time, section, task_date, url !== undefined ? url : taskRes.rows[0].url, completed_date, req.params.id]
+      [text, client_id !== undefined ? client_id : taskRes.rows[0].client_id, expected_time, actual_time !== undefined ? actual_time : taskRes.rows[0].actual_time, section, task_date, url !== undefined ? url : taskRes.rows[0].url, completed_date, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }

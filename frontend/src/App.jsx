@@ -123,17 +123,25 @@ function CalendarPicker({ selectedDate, onChange, onClose }) {
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-function Login({ onLogin }) {
+function Login({ onLogin, providers }) {
   const [uid,setUid]=useState(''); const [pw,setPw]=useState(''); const [err,setErr]=useState(''); const [loading,setLoading]=useState(false);
+  const showLocal = providers.includes('local');
+  const showSaml = providers.includes('saml');
   const go = async () => { if(!uid){setErr('Enter your user ID');return;} setLoading(true);setErr(''); try{const user=await api.login(uid,pw);onLogin(user);}catch(e){setErr(e.message||'Login failed');}finally{setLoading(false);} };
   return (
     <div style={{ minHeight:'100vh',background:'linear-gradient(135deg,#0f172a,#1e293b,#0f172a)',display:'flex',alignItems:'center',justifyContent:'center' }}>
       <div style={{ background:'rgba(30,41,59,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(148,163,184,0.1)',borderRadius:20,padding:'48px 40px',width:380,boxShadow:'0 25px 60px rgba(0,0,0,0.4)' }}>
         <div style={{ textAlign:'center',marginBottom:36 }}><div style={{ fontSize:40,marginBottom:8 }}>📊</div><h1 style={{ color:'#f1f5f9',fontSize:24,fontWeight:700,margin:0 }}>StandUp</h1><p style={{ color:'#94a3b8',fontSize:14,marginTop:6 }}>Daily Task Dashboard</p></div>
-        <div style={{ marginBottom:20 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>User ID</label><input value={uid} onChange={e=>{setUid(e.target.value);setErr('');}} placeholder="e.g. firstname.lastname" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
-        <div style={{ marginBottom:28 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>Password</label><input type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="Enter password" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
-        {err && <p style={{ color:'#f87171',fontSize:13,margin:'-12px 0 16px',textAlign:'center' }}>{err}</p>}
-        <button onClick={go} disabled={loading} style={{ width:'100%',padding:'13px 0',borderRadius:10,border:'none',background:'linear-gradient(135deg,#3b82f6,#6366f1)',color:'#fff',fontSize:15,fontWeight:600,cursor:'pointer',opacity:loading?0.7:1 }}>{loading?'Signing in…':'Sign In'}</button>
+        {showSaml && <>
+          <button onClick={()=>api.startSamlLogin()} style={{ width:'100%',padding:'13px 0',borderRadius:10,border:'1px solid rgba(99,102,241,0.4)',background:'rgba(99,102,241,0.1)',color:'#818cf8',fontSize:15,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8 }}>🔐 Sign in with SSO</button>
+          {showLocal && <div style={{ display:'flex',alignItems:'center',gap:12,margin:'24px 0' }}><div style={{ flex:1,height:1,background:'rgba(148,163,184,0.2)' }}/><span style={{ color:'#64748b',fontSize:12 }}>or</span><div style={{ flex:1,height:1,background:'rgba(148,163,184,0.2)' }}/></div>}
+        </>}
+        {showLocal && <>
+          <div style={{ marginBottom:20 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>User ID</label><input value={uid} onChange={e=>{setUid(e.target.value);setErr('');}} placeholder="e.g. firstname.lastname" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
+          <div style={{ marginBottom:28 }}><label style={{ color:'#94a3b8',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>Password</label><input type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&go()} placeholder="Enter password" style={{ ...IB,width:'100%',padding:'12px 14px',borderRadius:10 }} /></div>
+          <button onClick={go} disabled={loading} style={{ width:'100%',padding:'13px 0',borderRadius:10,border:'none',background:'linear-gradient(135deg,#3b82f6,#6366f1)',color:'#fff',fontSize:15,fontWeight:600,cursor:'pointer',opacity:loading?0.7:1 }}>{loading?'Signing in…':'Sign In'}</button>
+        </>}
+        {err && <p style={{ color:'#f87171',fontSize:13,margin:'16px 0 0',textAlign:'center' }}>{err}</p>}
       </div>
     </div>
   );
@@ -284,11 +292,11 @@ function TaskSection({ sKey, tasks, canE, clients, users, allUsers, teams, curre
   const isViewingToday = selectedDate === todayStr();
   useEffect(() => { if (adding && iRef.current) iRef.current.focus(); }, [adding]);
   useEffect(() => { if (eIdx >= 0 && eRef.current) eRef.current.focus(); }, [eIdx]);
-  const doAdd = () => { if (nt.text.trim()) { onAdd(sKey, { text:nt.text.trim(), client_id:nt.client_id||null, expected_time:nt.expected_time, actual_time:null, url:nt.url||null }); setNt({ text:'',client_id:'',expected_time:0,url:'' }); setAdding(false); } };
+  const doAdd = () => { if (nt.text.trim() && nt.client_id) { onAdd(sKey, { text:nt.text.trim(), client_id:nt.client_id, expected_time:nt.expected_time, actual_time:null, url:nt.url||null }); setNt({ text:'',client_id:'',expected_time:0,url:'' }); setAdding(false); } };
   const doUpd = (task) => { if (ef.text?.trim()) onUpd(task.id, ef); setEIdx(-1); };
   const tExp = sumT(tasks,'expected_time'); const tAct = isT ? sumT(tasks,'actual_time') : null;
   const canHandoff = () => canE && isT && (!isCompleted || isHigherRole);
-  const moveOptions = (isViewingToday && canE) ? (MOVE_OPTIONS[sKey] || []) : [];
+  const moveOptions = (isViewingToday && canE && !isCompleted) ? (MOVE_OPTIONS[sKey] || []) : [];
 
   return (
     <div style={{ background:'rgba(30,41,59,0.5)',border:'1px solid rgba(148,163,184,0.08)',borderRadius:14,padding:'20px 22px',marginBottom:16,borderLeft:`3px solid ${cfg.color}` }}>
@@ -329,7 +337,7 @@ function TaskSection({ sKey, tasks, canE, clients, users, allUsers, teams, curre
                       {task.expected_time>0 && <span style={{ color:'#64748b',fontSize:11 }}>⏱ {fmt(task.expected_time)}</span>}
                       {isT&&task.actual_time>0 && <span style={{ color:task.actual_time>task.expected_time?'#f87171':'#22c55e',fontSize:11,fontWeight:600 }}>→ {fmt(task.actual_time)}</span>}
                       {isT&&!task.actual_time&&canE && <button onClick={()=>onUpd(task.id,{actual_time:task.expected_time||15})} style={{ background:'rgba(34,197,94,0.15)',color:'#22c55e',border:'none',borderRadius:4,padding:'2px 7px',fontSize:10,cursor:'pointer',fontWeight:600 }}>+ Log time</button>}
-                      {isCompleted&&task.actual_time>0&&canE && <button onClick={()=>onUpd(task.id,{actual_time:0})} style={{ background:'rgba(248,113,113,0.1)',color:'#f87171',border:'none',borderRadius:4,padding:'2px 7px',fontSize:10,cursor:'pointer',fontWeight:600 }}>↩ Undo</button>}
+                      {isCompleted&&task.actual_time>0&&canE && <button onClick={()=>onUpd(task.id,{actual_time:0,section:'today'})} style={{ background:'rgba(248,113,113,0.1)',color:'#f87171',border:'none',borderRadius:4,padding:'2px 7px',fontSize:10,cursor:'pointer',fontWeight:600 }}>↩ Undo</button>}
                     </div>
                     {moveOptions.length > 0 && (
                       <div style={{ display:'flex',gap:5,marginTop:6,flexWrap:'wrap' }}>
@@ -345,8 +353,8 @@ function TaskSection({ sKey, tasks, canE, clients, users, allUsers, teams, curre
                   <div style={{ display:'flex',gap:4,flexShrink:0,opacity:0.3,transition:'opacity 0.15s' }} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.3}>
                     <button onClick={()=>setHistoryTaskId(task.id)} title="View history" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>📋</button>
                     {canHandoff() && <button onClick={()=>setHandoffTask(task)} title="Hand off" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>🔁</button>}
-                    {canE && <button onClick={()=>{setEIdx(idx);setEf({text:task.text,client_id:task.client_id||'',expected_time:task.expected_time||0,actual_time:task.actual_time,url:task.url||''});}} style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>✏️</button>}
-                    {canE && <button onClick={()=>onRem(task.id)} style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>🗑️</button>}
+                    {canE && <button onClick={()=>{setEIdx(idx);setEf({text:task.text,client_id:task.client_id||'',expected_time:task.expected_time||0,actual_time:task.actual_time,url:task.url||''});}} title="Edit task" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>✏️</button>}
+                    {canE && <button onClick={()=>onRem(task.id)} title="Delete task" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'2px 4px' }}>🗑️</button>}
                   </div>
                 </div>
               </div>
@@ -360,11 +368,11 @@ function TaskSection({ sKey, tasks, canE, clients, users, allUsers, teams, curre
           <input ref={iRef} value={nt.text} onChange={e=>setNt({...nt,text:e.target.value})} onKeyDown={e=>{if(e.key==='Enter')doAdd();if(e.key==='Escape'){setAdding(false);setNt({text:'',client_id:'',expected_time:0,url:''});}}} placeholder="Task description…" style={{ ...IB,width:'100%' }} />
           <input value={nt.url} onChange={e=>setNt({...nt,url:e.target.value})} placeholder="Ticket URL (optional)" style={{ ...IB,width:'100%',fontSize:12 }} />
           <div style={{ display:'flex',gap:8,alignItems:'center',flexWrap:'wrap' }}>
-            <select value={nt.client_id} onChange={e=>setNt({...nt,client_id:e.target.value})} style={{ ...IB,fontSize:12,padding:'6px 8px',width:130,cursor:'pointer' }}><option value="">No client</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <select value={nt.client_id} onChange={e=>setNt({...nt,client_id:e.target.value})} style={{ ...IB,fontSize:12,padding:'6px 8px',width:130,cursor:'pointer',borderColor:!nt.client_id?'rgba(248,113,113,0.4)':'rgba(148,163,184,0.2)' }}><option value="">Select client…</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
             <div style={{ display:'flex',alignItems:'center',gap:4 }}><span style={{ color:'#64748b',fontSize:11 }}>Est:</span><TPick value={nt.expected_time} onChange={v=>setNt({...nt,expected_time:v})} /></div>
           </div>
           <div style={{ display:'flex',gap:6 }}>
-            <button onClick={doAdd} style={{ background:cfg.color,color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer' }}>Add</button>
+            <button onClick={doAdd} style={{ background:(nt.text.trim()&&nt.client_id)?cfg.color:'rgba(148,163,184,0.2)',color:(nt.text.trim()&&nt.client_id)?'#fff':'#64748b',border:'none',borderRadius:8,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:(nt.text.trim()&&nt.client_id)?'pointer':'not-allowed' }}>Add</button>
             <button onClick={()=>{setAdding(false);setNt({text:'',client_id:'',expected_time:0,url:''});}} style={{ background:'rgba(148,163,184,0.15)',color:'#94a3b8',border:'none',borderRadius:8,padding:'8px 12px',fontSize:13,cursor:'pointer' }}>Cancel</button>
           </div>
         </div>
@@ -403,8 +411,8 @@ function AdminRow({ children, onEdit, onDelete }) {
       onMouseEnter={e=>e.currentTarget.style.background='rgba(15,23,42,0.7)'} onMouseLeave={e=>e.currentTarget.style.background='rgba(15,23,42,0.4)'}>
       <div style={{ flex:1,minWidth:0 }}>{children}</div>
       <div style={{ display:'flex',gap:4,flexShrink:0 }}>
-        {onEdit && <button onClick={onEdit} style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'3px 6px',borderRadius:4 }} onMouseEnter={e=>e.currentTarget.style.background='rgba(148,163,184,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>✏️</button>}
-        {onDelete && <button onClick={onDelete} style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'3px 6px',borderRadius:4 }} onMouseEnter={e=>e.currentTarget.style.background='rgba(248,113,113,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>🗑️</button>}
+        {onEdit && <button onClick={onEdit} title="Edit" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'3px 6px',borderRadius:4 }} onMouseEnter={e=>e.currentTarget.style.background='rgba(148,163,184,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>✏️</button>}
+        {onDelete && <button onClick={onDelete} title="Delete" style={{ background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:13,padding:'3px 6px',borderRadius:4 }} onMouseEnter={e=>e.currentTarget.style.background='rgba(248,113,113,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>🗑️</button>}
       </div>
     </div>
   );
@@ -428,13 +436,18 @@ function AdminModal({ title, onClose, onSave, saveLabel, saveColor, children, er
   );
 }
 
-function AdminPanel({ curUser, users, teams, clients, onRefresh }) {
+function AdminPanel({ curUser, users, teams, clients, taskCounts, onRefresh }) {
   const [tab, setTab] = useState('Users');
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState(null);
+  const [adminTeamFilter, setAdminTeamFilter] = useState('');
+  const [adminClientFilter, setAdminClientFilter] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminTeamSearch, setAdminTeamSearch] = useState('');
+  const [adminClientSearch, setAdminClientSearch] = useState('');
   const ib = { ...IB, width:'100%', padding:'10px 12px' };
   const sel = { ...IB, width:'100%', padding:'10px 12px', cursor:'pointer' };
   const F = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -468,7 +481,7 @@ function AdminPanel({ curUser, users, teams, clients, onRefresh }) {
   return (
     <div>
       <div style={{ display:'flex',gap:6,marginBottom:24,padding:'4px',background:'rgba(15,23,42,0.4)',borderRadius:10,border:'1px solid rgba(148,163,184,0.08)',width:'fit-content' }}>
-        {ADMIN_TABS.map(t=><button key={t} onClick={()=>setTab(t)} style={{ padding:'8px 20px',borderRadius:8,border:'none',background:tab===t?'rgba(99,102,241,0.2)':'transparent',color:tab===t?'#818cf8':'#64748b',fontSize:13,fontWeight:tab===t?600:400,cursor:'pointer' }}>{t}</button>)}
+        {ADMIN_TABS.map(t=><button key={t} onClick={()=>{setTab(t);setAdminTeamFilter('');setAdminClientFilter('');setAdminSearch('');setAdminTeamSearch('');setAdminClientSearch('');}} style={{ padding:'8px 20px',borderRadius:8,border:'none',background:tab===t?'rgba(99,102,241,0.2)':'transparent',color:tab===t?'#818cf8':'#64748b',fontSize:13,fontWeight:tab===t?600:400,cursor:'pointer' }}>{t}</button>)}
       </div>
       {tab==='Users' && (
         <div style={{ background:'rgba(30,41,59,0.5)',border:'1px solid rgba(148,163,184,0.08)',borderRadius:14,padding:'20px 22px',marginBottom:20,borderLeft:'3px solid #6366f1' }}>
@@ -476,7 +489,26 @@ function AdminPanel({ curUser, users, teams, clients, onRefresh }) {
             <h3 style={{ color:'#e2e8f0',fontSize:15,fontWeight:600,margin:0 }}>👤 Users</h3>
             <button onClick={()=>openModal('user',{_new:true,id:'',name:'',role:'employee',team_memberships:[],password:''})} style={{ background:'#6366f1',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer' }}>+ New User</button>
           </div>
-          {users.map(u=>(
+          <div style={{ display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center' }}>
+            <select value={adminTeamFilter} onChange={e=>setAdminTeamFilter(e.target.value)} style={{ ...IB,fontSize:12,padding:'6px 10px',width:160,cursor:'pointer' }}>
+              <option value="">All Teams</option>
+              <option value="__unassigned__">Unassigned</option>
+              {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <select value={adminClientFilter} onChange={e=>setAdminClientFilter(e.target.value)} style={{ ...IB,fontSize:12,padding:'6px 10px',width:160,cursor:'pointer' }}>
+              <option value="">All Clients</option>
+              {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input value={adminSearch} onChange={e=>setAdminSearch(e.target.value)} placeholder="Search users..." style={{ ...IB,fontSize:12,padding:'6px 10px',width:160 }} />
+            {(adminTeamFilter||adminClientFilter||adminSearch)&&<button onClick={()=>{setAdminTeamFilter('');setAdminClientFilter('');setAdminSearch('');}} style={{ background:'none',border:'none',color:'#64748b',fontSize:11,cursor:'pointer',padding:'4px 8px' }}>✕ Clear</button>}
+          </div>
+          {users.filter(u=>{
+            if(adminTeamFilter==='__unassigned__'&&userTeamIds(u).length>0) return false;
+            if(adminTeamFilter&&adminTeamFilter!=='__unassigned__'&&!userTeamIds(u).includes(adminTeamFilter)) return false;
+            if(adminClientFilter&&!taskCounts?.[u.id]?.clientIds?.includes(adminClientFilter)) return false;
+            if(adminSearch){const q=adminSearch.toLowerCase();if(!u.name.toLowerCase().includes(q)&&!u.id.toLowerCase().includes(q)) return false;}
+            return true;
+          }).map(u=>(
             <AdminRow key={u.id} onEdit={()=>openModal('user',{...u,team_memberships:u.team_memberships||(u.team_ids||[]).map(tid=>({team_id:tid,role:'employee'})),password:''})} onDelete={u.id!==curUser.id?()=>setConfirm({label:`Delete "${u.name}"?`,onConfirm:async()=>{await api.deleteUser(u.id);onRefresh();}}):null}>
               <div style={{ display:'flex',alignItems:'center',gap:10 }}>
                 <div style={{ width:32,height:32,borderRadius:8,background:`${roleColor[u.role]}22`,display:'flex',alignItems:'center',justifyContent:'center',color:roleColor[u.role],fontWeight:700,fontSize:11,flexShrink:0 }}>{u.name.split(' ').map(n=>n[0]).join('')}</div>
@@ -498,7 +530,16 @@ function AdminPanel({ curUser, users, teams, clients, onRefresh }) {
             <h3 style={{ color:'#e2e8f0',fontSize:15,fontWeight:600,margin:0 }}>🏢 Teams</h3>
             <button onClick={()=>openModal('team',{_new:true,id:'',name:'',manager_id:'',lead_id:''})} style={{ background:'#22c55e',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer' }}>+ New Team</button>
           </div>
-          {teams.map(t=>{
+          <div style={{ marginBottom:12 }}>
+            <input value={adminTeamSearch} onChange={e=>setAdminTeamSearch(e.target.value)} placeholder="Search teams..." style={{ ...IB,fontSize:12,padding:'6px 10px',width:'100%',maxWidth:280 }} />
+          </div>
+          {teams.filter(t=>{
+            if(!adminTeamSearch) return true;
+            const q=adminTeamSearch.toLowerCase();
+            const mgr=users.find(u=>u.id===t.manager_id);
+            const lead=users.find(u=>u.id===t.lead_id);
+            return t.name.toLowerCase().includes(q)||t.id.toLowerCase().includes(q)||(mgr?.name.toLowerCase().includes(q))||(lead?.name.toLowerCase().includes(q));
+          }).map(t=>{
             const mgr=users.find(u=>u.id===t.manager_id); const lead=users.find(u=>u.id===t.lead_id);
             const members=users.filter(u=>userTeamIds(u).includes(t.id));
             return <AdminRow key={t.id} onEdit={()=>openModal('team',{...t})} onDelete={()=>setConfirm({label:`Delete team "${t.name}"?`,onConfirm:async()=>{await api.deleteTeam(t.id);onRefresh();}})}>
@@ -520,7 +561,14 @@ function AdminPanel({ curUser, users, teams, clients, onRefresh }) {
             <h3 style={{ color:'#e2e8f0',fontSize:15,fontWeight:600,margin:0 }}>🏷️ Clients</h3>
             <button onClick={()=>openModal('client',{_new:true,id:'',name:''})} style={{ background:'#f59e0b',color:'#fff',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer' }}>+ New Client</button>
           </div>
-          {clients.map(c=><AdminRow key={c.id} onEdit={()=>openModal('client',{...c})} onDelete={()=>setConfirm({label:`Delete client "${c.name}"?`,onConfirm:async()=>{await api.deleteClient(c.id);onRefresh();}})}>
+          <div style={{ marginBottom:12 }}>
+            <input value={adminClientSearch} onChange={e=>setAdminClientSearch(e.target.value)} placeholder="Search clients..." style={{ ...IB,fontSize:12,padding:'6px 10px',width:'100%',maxWidth:280 }} />
+          </div>
+          {clients.filter(c=>{
+            if(!adminClientSearch) return true;
+            const q=adminClientSearch.toLowerCase();
+            return c.name.toLowerCase().includes(q)||c.id.toLowerCase().includes(q);
+          }).map(c=><AdminRow key={c.id} onEdit={()=>openModal('client',{...c})} onDelete={()=>setConfirm({label:`Delete client "${c.name}"?`,onConfirm:async()=>{await api.deleteClient(c.id);onRefresh();}})}>
             <div><div style={{ color:'#e2e8f0',fontSize:13,fontWeight:600 }}>{c.name}</div><span style={{ color:'#64748b',fontSize:11 }}>{c.id}</span></div>
           </AdminRow>)}
         </div>
@@ -577,6 +625,8 @@ export default function App() {
   const [teams, setTeams] = useState([]);
   const [ledTeams, setLedTeams] = useState([]);
   const [activeTeamId, setActiveTeamId] = useState(null);
+  const [activeClientId, setActiveClientId] = useState(null);
+  const [showUnassigned, setShowUnassigned] = useState(false);
   const [clients, setClients] = useState([]);
   const [viewUser, setViewUser] = useState(null);
   const [tasks, setTasks] = useState({ today:[], tomorrow:[], future:[] });
@@ -587,10 +637,18 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [showCal, setShowCal] = useState(false);
   const [teammates, setTeammates] = useState([]);
+  const [authProviders, setAuthProviders] = useState(['local']);
 
   // Restore session — always reset to today
   useEffect(() => {
     (async () => {
+      // Handle SAML redirect (token in URL after SSO)
+      const samlResult = api.consumeTokenFromUrl();
+      if (samlResult?.error) console.error('SSO login failed:', samlResult.error);
+
+      // Fetch available auth providers
+      try { const { providers } = await api.getAuthProviders(); setAuthProviders(providers); } catch {}
+
       if (api.isLoggedIn()) {
         try { const me = await api.getMe(); if (me) { setCurUser(me); setViewUser(me.id); setSelectedDate(todayStr()); } } catch {}
       }
@@ -611,12 +669,24 @@ export default function App() {
       const visible = getVisibleUsers(curUser.id, u, t);
       const counts = {};
       await Promise.all(visible.map(async vu => {
-        try { const vt = await api.getTasks(vu.id); counts[vu.id] = { today:vt.today?.length||0, tomorrow:vt.tomorrow?.length||0, future:vt.future?.length||0 }; }
-        catch { counts[vu.id] = { today:0, tomorrow:0, future:0 }; }
+        try {
+          const vt = await api.getTasks(vu.id, selectedDate);
+          const todayTasks = vt.today || [];
+          const allTasks = [...todayTasks, ...(vt.tomorrow || []), ...(vt.future || [])];
+          const clientIds = [...new Set(allTasks.map(t => t.client_id).filter(Boolean))];
+          counts[vu.id] = {
+            working: todayTasks.filter(t => !t.actual_time || t.actual_time === 0).length,
+            today: todayTasks.filter(t => t.actual_time > 0).length,
+            tomorrow: vt.tomorrow?.length || 0,
+            future: vt.future?.length || 0,
+            clientIds
+          };
+        }
+        catch { counts[vu.id] = { working:0, today:0, tomorrow:0, future:0 }; }
       }));
       setTaskCounts(counts);
     } catch (err) { console.error('Load error:', err); }
-  }, [curUser]);
+  }, [curUser, selectedDate]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -664,18 +734,23 @@ export default function App() {
   };
 
   if (loading) return <div style={{ minHeight:'100vh',background:'#0f172a',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8' }}>Loading…</div>;
-  if (!curUser) return <Login onLogin={handleLogin} />;
+  if (!curUser) return <Login onLogin={handleLogin} providers={authProviders} />;
 
-  const visible = getVisibleUsers(curUser.id, users, teams, activeTeamId);
+  let visible = getVisibleUsers(curUser.id, users, teams, activeTeamId);
+  if (activeClientId) visible = visible.filter(u => taskCounts[u.id]?.clientIds?.includes(activeClientId));
+  if (showUnassigned) visible = visible.filter(u => userTeamIds(u).length === 0);
   const vud = users.find(u => u.id === viewUser);
   const canE = canEditCheck(curUser.id, viewUser, users, teams);
   const isAdmin = curUser.role === 'owner' || curUser.role === 'manager';
   const allMyTeams = curUser.role === 'owner' ? teams : curUser.role === 'manager' ? teams.filter(t => t.manager_id === curUser.id) : ledTeams;
   const byTeam = {}; const noTeam = [];
   visible.forEach(u => {
-    const tids = userTeamIds(u).filter(tid => { if (!teams.find(t => t.id === tid)) return false; if (activeTeamId) return tid === activeTeamId; return true; });
-    if (tids.length > 0) { tids.forEach(tid => { if (!byTeam[tid]) byTeam[tid] = []; if (!byTeam[tid].find(x=>x.id===u.id)) byTeam[tid].push(u); }); }
-    else if (!activeTeamId) { noTeam.push(u); }
+    if (showUnassigned) { noTeam.push(u); }
+    else {
+      const tids = userTeamIds(u).filter(tid => { if (!teams.find(t => t.id === tid)) return false; if (activeTeamId) return tid === activeTeamId; return true; });
+      if (tids.length > 0) { tids.forEach(tid => { if (!byTeam[tid]) byTeam[tid] = []; if (!byTeam[tid].find(x=>x.id===u.id)) byTeam[tid].push(u); }); }
+      else if (!activeTeamId) { noTeam.push(u); }
+    }
   });
 
   const tExp = sumT(tasks.today||[], 'expected_time');
@@ -700,8 +775,18 @@ export default function App() {
             <div style={{ marginTop:10 }}>
               <div style={{ color:'#64748b',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6 }}>Filter by Team</div>
               <div style={{ display:'flex',flexDirection:'column',gap:3 }}>
-                <button onClick={()=>setActiveTeamId(null)} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:!activeTeamId?'1px solid rgba(148,163,184,0.3)':'1px solid transparent',background:!activeTeamId?'rgba(148,163,184,0.08)':'transparent',color:!activeTeamId?'#e2e8f0':'#64748b',fontSize:12,cursor:'pointer' }}>All Teams</button>
-                {allMyTeams.map(t=><button key={t.id} onClick={()=>setActiveTeamId(t.id)} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:activeTeamId===t.id?'1px solid rgba(34,197,94,0.4)':'1px solid transparent',background:activeTeamId===t.id?'rgba(34,197,94,0.08)':'transparent',color:activeTeamId===t.id?'#22c55e':'#64748b',fontSize:12,cursor:'pointer' }}>🏢 {t.name}</button>)}
+                <button onClick={()=>{setActiveTeamId(null);setShowUnassigned(false);}} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:!activeTeamId&&!showUnassigned?'1px solid rgba(148,163,184,0.3)':'1px solid transparent',background:!activeTeamId&&!showUnassigned?'rgba(148,163,184,0.08)':'transparent',color:!activeTeamId&&!showUnassigned?'#e2e8f0':'#64748b',fontSize:12,cursor:'pointer' }}>All Teams</button>
+                {allMyTeams.map(t=><button key={t.id} onClick={()=>{setActiveTeamId(t.id);setShowUnassigned(false);}} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:activeTeamId===t.id?'1px solid rgba(34,197,94,0.4)':'1px solid transparent',background:activeTeamId===t.id?'rgba(34,197,94,0.08)':'transparent',color:activeTeamId===t.id?'#22c55e':'#64748b',fontSize:12,cursor:'pointer' }}>🏢 {t.name}</button>)}
+                <button onClick={()=>{setShowUnassigned(!showUnassigned);if(!showUnassigned)setActiveTeamId(null);}} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:showUnassigned?'1px solid rgba(148,163,184,0.4)':'1px solid transparent',background:showUnassigned?'rgba(148,163,184,0.08)':'transparent',color:showUnassigned?'#e2e8f0':'#64748b',fontSize:12,cursor:'pointer',fontStyle:'italic' }}>👤 Unassigned</button>
+              </div>
+            </div>
+          )}
+          {clients.length > 0 && (
+            <div style={{ marginTop:10 }}>
+              <div style={{ color:'#64748b',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6 }}>Filter by Client</div>
+              <div style={{ display:'flex',flexDirection:'column',gap:3,maxHeight:150,overflowY:'auto' }}>
+                <button onClick={()=>setActiveClientId(null)} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:!activeClientId?'1px solid rgba(148,163,184,0.3)':'1px solid transparent',background:!activeClientId?'rgba(148,163,184,0.08)':'transparent',color:!activeClientId?'#e2e8f0':'#64748b',fontSize:12,cursor:'pointer' }}>All Clients</button>
+                {clients.map(c=><button key={c.id} onClick={()=>setActiveClientId(c.id)} style={{ width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:activeClientId===c.id?'1px solid rgba(245,158,11,0.4)':'1px solid transparent',background:activeClientId===c.id?'rgba(245,158,11,0.08)':'transparent',color:activeClientId===c.id?'#f59e0b':'#64748b',fontSize:12,cursor:'pointer' }}>🏷️ {c.name}</button>)}
               </div>
             </div>
           )}
@@ -737,7 +822,7 @@ export default function App() {
         </div>
         <div style={{ padding:24,maxWidth:showAdmin?860:720,margin:'0 auto' }}>
           {showAdmin
-            ? <AdminPanel curUser={curUser} users={users} teams={teams} clients={clients} onRefresh={loadAll} />
+            ? <AdminPanel curUser={curUser} users={users} teams={teams} clients={clients} taskCounts={taskCounts} onRefresh={loadAll} />
             : viewUser
               ? Object.keys(SC).map(k =>
                   <TaskSection key={k} sKey={k} tasks={fourSectionTasks[k]||[]} canE={canE&&selectedDate>=todayStr()} clients={clients} users={visible} allUsers={curUser.role==='employee'?teammates:users} teams={teams} currentUserId={curUser.id} currentUserRole={curUser.role} onAdd={handleAddTask} onRem={handleRemoveTask} onUpd={handleUpdateTask} onMove={handleMoveTask} onHandoff={loadTasks} selectedDate={selectedDate} />
