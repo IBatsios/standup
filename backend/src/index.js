@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const db = require('./db');
 const { authMiddleware } = require('./auth');
-const { canEdit, canHandoff, getVisibleUserIds } = require('./permissions');
+const { canEdit, getVisibleUserIds } = require('./permissions');
 const authProviders = require('./auth-providers');
 
 const app = express();

@@ -306,7 +306,7 @@ function TaskSection({ sKey, tasks, canE, canHO, clients, users, allUsers, teams
   const doAdd = () => { if (nt.text.trim() && nt.client_id) { onAdd(sKey, { text:nt.text.trim(), client_id:nt.client_id, expected_time:nt.expected_time, actual_time:null, url:nt.url||null }); setNt({ text:'',client_id:'',expected_time:0,url:'' }); setAdding(false); } };
   const doUpd = (task) => { if (ef.text?.trim()) onUpd(task.id, ef); setEIdx(-1); };
   const tExp = sumT(tasks,'expected_time'); const tAct = isT ? sumT(tasks,'actual_time') : null;
-  const canHandoff = () => (canE || canHO) && isT && (!isCompleted || isHigherRole);
+  const canHandoff = () => canE && isT && (!isCompleted || isHigherRole);
   const moveOptions = (isViewingToday && canE && !isCompleted) ? (MOVE_OPTIONS[sKey] || []) : [];
 
   return (

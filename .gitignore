@@ -4,3 +4,4 @@ frontend/dist/
 localhost.env
 keycloak/standup-realm.json
 proxy/nginx.conf
+.git.bkp
