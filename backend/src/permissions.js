@@ -77,7 +77,25 @@ async function getVisibleUserIds(userId) {
     return [...ids];
   }
 
-  return [userId];
+  // Employees can see their teammates
+  const myTeams = await getUserTeamIds(userId);
+  if (myTeams.length === 0) return [userId];
+  const membersRes = await db.query(
+    'SELECT DISTINCT user_id FROM user_teams WHERE team_id = ANY($1)',
+    [myTeams]
+  );
+  const ids = new Set([userId, ...membersRes.rows.map(r => r.user_id)]);
+  return [...ids];
 }
 
-module.exports = { canEdit, getVisibleUserIds };
+// Handoff permission: canEdit OR shares a team with the task owner
+async function canHandoff(currentUserId, targetUserId) {
+  if (currentUserId === targetUserId) return true;
+  const editAllowed = await canEdit(currentUserId, targetUserId);
+  if (editAllowed) return true;
+  const cuTeams = await getUserTeamIds(currentUserId);
+  const tuTeams = await getUserTeamIds(targetUserId);
+  return cuTeams.some(tid => tuTeams.includes(tid));
+}
+
+module.exports = { canEdit, canHandoff, getVisibleUserIds };
