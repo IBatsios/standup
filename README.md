@@ -18,7 +18,7 @@ Built with React, Express, PostgreSQL, and Docker. Supports optional SSO via Key
 
 - **Daily task board** — Working Today, Completed, Tomorrow, and Future sections per team member
 - **Calendar picker** — View any team member's tasks on any date
-- **Role-based access** — Owners see everyone; managers see their teams; team leads see their members; employees see only themselves
+- **Role-based access** — Owners see everyone; managers see their teams; team leads see their members; employees see their team members
 - **Time tracking** — Estimate time per task, log actual time on completion
 - **Client assignment** — Every task is tied to a client for reporting
 - **Task handoffs** — Transfer tasks between team members with history tracking
@@ -174,7 +174,7 @@ Team Lead
   └── Can see/edit their team members (lower roles only)
 
 Employee
-  └── Can only see/edit their own tasks
+  └── Can see team members' tasks; can only edit their own
 ```
 
 ## Maintenance
