@@ -438,7 +438,7 @@ app.post('/api/tasks/:id/handoff', authMiddleware, async (req, res) => {
   try {
     const taskRes = await db.query('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
     if (!taskRes.rows[0]) return res.status(404).json({ error: 'Task not found' });
-    const allowed = await canEdit(req.user.id, taskRes.rows[0].user_id);
+    const allowed = await canHandoff(req.user.id, taskRes.rows[0].user_id);
     if (!allowed) return res.status(403).json({ error: 'Insufficient permissions' });
 
     const { to_user_id, time_spent, note } = req.body;

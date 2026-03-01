@@ -51,6 +51,13 @@ function userRoleInTeam(u, teamId) {
   const m = u.team_memberships?.find(m => m.team_id === teamId);
   return m?.role || u.role;
 }
+function canHandoffCheck(cu, tu, users, teams) {
+  if (!cu || !tu) return false; if (cu === tu) return true;
+  if (canEditCheck(cu, tu, users, teams)) return true;
+  const c = users.find(u => u.id === cu), t = users.find(u => u.id === tu);
+  if (!c || !t) return false;
+  return userTeamIds(c).some(tid => userTeamIds(t).includes(tid));
+}
 function canEditCheck(cu, tu, users, teams) {
   if (!cu || !tu) return false; if (cu === tu) return true;
   const c = users.find(u => u.id === cu), t = users.find(u => u.id === tu);
@@ -82,7 +89,11 @@ function getVisibleUsers(cu, users, teams, activeTeamId) {
     const filterIds = activeTeamId ? [activeTeamId] : allTeamIds;
     return users.filter(u => u.id === cu || userTeamIds(u).some(tid => filterIds.includes(tid)));
   }
-  return users.filter(u => u.id === cu);
+  // Employees can see their teammates
+  const myTeamIds = userTeamIds(c);
+  if (myTeamIds.length === 0) return users.filter(u => u.id === cu);
+  const filterIds = activeTeamId ? [activeTeamId] : myTeamIds;
+  return users.filter(u => u.id === cu || userTeamIds(u).some(tid => filterIds.includes(tid)));
 }
 
 // ─── CalendarPicker ───────────────────────────────────────────────────────────
@@ -277,7 +288,7 @@ function HandoffModal({ task, users, allUsers, currentUserId, teams, onHandoff, 
 }
 
 // ─── TaskSection ──────────────────────────────────────────────────────────────
-function TaskSection({ sKey, tasks, canE, clients, users, allUsers, teams, currentUserId, currentUserRole, onAdd, onRem, onUpd, onMove, onHandoff, selectedDate }) {
+function TaskSection({ sKey, tasks, canE, canHO, clients, users, allUsers, teams, currentUserId, currentUserRole, onAdd, onRem, onUpd, onMove, onHandoff, selectedDate }) {
   const [adding, setAdding] = useState(false);
   const [nt, setNt] = useState({ text:'', client_id:'', expected_time:0, url:'' });
   const [eIdx, setEIdx] = useState(-1);
@@ -741,8 +752,10 @@ export default function App() {
   if (showUnassigned) visible = visible.filter(u => userTeamIds(u).length === 0);
   const vud = users.find(u => u.id === viewUser);
   const canE = canEditCheck(curUser.id, viewUser, users, teams);
+  const canHO = canHandoffCheck(curUser.id, viewUser, users, teams);
   const isAdmin = curUser.role === 'owner' || curUser.role === 'manager';
-  const allMyTeams = curUser.role === 'owner' ? teams : curUser.role === 'manager' ? teams.filter(t => t.manager_id === curUser.id) : ledTeams;
+  const curUserFull = users.find(u => u.id === curUser.id);
+  const allMyTeams = curUser.role === 'owner' ? teams : curUser.role === 'manager' ? teams.filter(t => t.manager_id === curUser.id) : curUser.role === 'team_lead' ? ledTeams : teams.filter(t => curUserFull && userTeamIds(curUserFull).includes(t.id));
   const byTeam = {}; const noTeam = [];
   visible.forEach(u => {
     if (showUnassigned) { noTeam.push(u); }
@@ -825,7 +838,7 @@ export default function App() {
             ? <AdminPanel curUser={curUser} users={users} teams={teams} clients={clients} taskCounts={taskCounts} onRefresh={loadAll} />
             : viewUser
               ? Object.keys(SC).map(k =>
-                  <TaskSection key={k} sKey={k} tasks={fourSectionTasks[k]||[]} canE={canE&&selectedDate>=todayStr()} clients={clients} users={visible} allUsers={curUser.role==='employee'?teammates:users} teams={teams} currentUserId={curUser.id} currentUserRole={curUser.role} onAdd={handleAddTask} onRem={handleRemoveTask} onUpd={handleUpdateTask} onMove={handleMoveTask} onHandoff={loadTasks} selectedDate={selectedDate} />
+                  <TaskSection key={k} sKey={k} tasks={fourSectionTasks[k]||[]} canE={canE&&selectedDate>=todayStr()} canHO={canHO&&selectedDate>=todayStr()} clients={clients} users={visible} allUsers={curUser.role==='employee'?teammates:users} teams={teams} currentUserId={curUser.id} currentUserRole={curUser.role} onAdd={handleAddTask} onRem={handleRemoveTask} onUpd={handleUpdateTask} onMove={handleMoveTask} onHandoff={loadTasks} selectedDate={selectedDate} />
                 )
               : <div style={{ textAlign:'center',color:'#475569',paddingTop:80 }}><p style={{ fontSize:40 }}>👈</p><p>Select a team member</p></div>}
         </div>
